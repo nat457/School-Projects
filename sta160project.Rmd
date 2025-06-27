@@ -1,0 +1,572 @@
+---
+title: "Appendix"
+author: "Natalie Bondurant"
+date: "2025-05-20"
+output: pdf_document
+---
+
+
+```{r}
+#unzip("puj-1910-predicting.zip")
+dat2 = read.csv("Training Data.csv")
+```
+
+```{r}
+library(corrr)
+library(ggcorrplot)
+library(tidyverse)
+library(ggplot2)
+library(caret)
+library(caretEnsemble)
+library(psych)
+library(GGally)
+library(rpart)
+library(cvms)
+library(randomForest)
+library(entropy)
+library(keras)
+library(mlbench)
+library(dplyr)
+library(magrittr)
+library(neuralnet)
+library(magrittr)
+library(tensorflow)
+library(rpart)
+library(qgraph)
+library(corrplot)
+library(bootnet)
+library(FNN)
+library(gmodels)
+library(FactoMineR)
+library(factoextra)
+```
+
+```{r}
+colnames(dat2)
+```
+
+VISUALIZING WITH NETWORK
+```{r}
+numeric = dat2[sapply(dat2, is.numeric)]
+nw <- estimateNetwork(numeric, default = 'EBICglasso', tuning = 0.5, threshold = TRUE)
+
+maxi <- max(nw$graph)
+qgraph(nw$graph, maximum=maxi, theme = "colorblind", palette = "rainbow",layout = 'spring')
+title('Network of All Variables', cex.main=1.2, line=3)
+```
+
+HISTOGRAMS OF NUMERICAL VARIABLES
+```{r}
+plots = for (n in colnames(numeric)){
+  ggplot(numeric, aes(x = numeric[[n]]))+
+    geom_histogram()+
+    ggtitle(n)
+}
+#plots
+ggplot(dat2, aes(x = COSTOESTIMADO))+
+  geom_histogram(fill = "royalblue3", color = "black")+
+  ggtitle("Estimated Cost")+
+  labs(
+    y = "Frequency",
+    x = "Estimated Cost (in dollars)"
+  )+
+  theme_minimal()
+```
+
+LINE PLOTS OF NPS SCORE AGAINST EACH NUMERIC VARIABLE
+```{r}
+plotline = for (n in colnames(numeric)){
+  ggplot(numeric, aes(x = numeric[[n]], y= numeric$SCORENPS))+
+    geom_line()+
+    ggtitle(n)
+}
+#plotline
+```
+
+BAR CHARTS OF CATEGORICAL VARIABLES
+```{r}
+cat = dat2[sapply(dat2, is.character)]
+
+ack = for (c in colnames(cat)){
+  print(ggplot(cat, aes(x = cat[[c]],color = "royalblue3"))+
+    geom_bar(fill = "royalblue3", color = 'black')+
+    ggtitle(c))+
+    theme_minimal()
+}
+ggplot(dat2, aes(x = CATEGORIACAMA))+
+  geom_bar(fill = "royalblue3", color = 'black')+
+  ggtitle("Bar Plot of Category")+
+  labs(
+    y = "Frequency",
+    x = "Category of Hospitalization"
+  )+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+FREQUENCY TABLES OF CATEGORICAL VARIABLES
+```{r}
+colnames(cat)
+cat = subset(cat, select = -c(FECHAENTRADA, FECHASALIDA))
+#sapply(cat, function(x) table(x))
+```
+
+SUMMARY STATISTICS OF NUMERICAL VARIABLES
+```{r}
+num = subset(numeric, select = -c(CONSECUTIVO, ID))
+
+numsumstats = sapply(num, function(x) summary(x))
+#numsumstats
+```
+
+FINDING OUTLIERS
+```{r}
+catfreq = sapply(num, function(x) table(boxplot.stats(x)$out))
+#catfreq
+```
+
+CORRELATION MATRIX PLOT
+```{r}
+library(corrplot)
+library(corrr)
+cormat = cor(num)
+corrplot(cormat, type = 'full', tl.cex= .3)
+```
+
+
+
+MANIPULATING DATA FOR ANALYSIS
+
+DATA FOR ANALYSIS
+```{r}
+a = dat2
+a = subset(a, select = -c(FECHASALIDA, FECHAENTRADA, ID, CONSECUTIVO, SCORENPS))
+a$NPS = as.factor(a$NPS)
+```
+
+
+ONE-HOT ENCODING CATEGORICAL VARIABLES INTO 
+```{r, eval = FALSE}
+enc = a
+
+dum = dummyVars('~.', data = enc)
+datdum = data.frame(predict(dum, newdata = enc))
+datdum$NPS = a$NPS
+datdum = subset(datdum, select = -c(NPS.Promotor, NPS.Detractor, NPS.Passive))
+#colnames(datdum)
+```
+
+CATEGORICAL VARIABLES AS FACTORS
+NUMERICAL VARIABLES 
+```{r}
+fac = a
+fac$ESTADOCIVIL = as.factor(fac$ESTADOCIVIL)
+fac$CATEGORIACAMA = as.factor(fac$CATEGORIACAMA)
+fac$DEPARTAMENTO = as.factor(fac$DEPARTAMENTO)
+fac$CATEGORIA = as.factor(fac$CATEGORIA)
+fac$ESTADO = as.factor(fac$ESTADO)
+fac$PAIS = as.factor(fac$PAIS)
+fac$ZONA = as.factor(fac$ZONA)
+fac$GENERO = as.factor(fac$GENERO)
+
+catmca = fac[sapply(fac, is.factor)]
+catmca = subset(catmca, select = -c(PAIS, ESTADO, ZONA))
+#colnames(catmca)
+
+numa = fac[sapply(fac, is.numeric)]
+numa$NPS = fac$NPS
+#colnames(numa)
+numonly = fac[sapply(fac, is.numeric)]
+```
+
+BALANCING NPS
+```{r}
+set.seed(29374)
+upa = upSample(x = datdum[,-ncol(datdum)],
+                 y = datdum$NPS)
+table(a$NPS)
+table(upa$Class)
+#nrow(upa)
+```
+
+REDUCED VARIABLES
+```{r}
+red = subset(a, select = c(COSTOESTIMADO, AE_ATTENDEEFOOD, AE_PATIENTSTATUSINFO, AE_ATTENDEECARE, 
+                           OVS_SECURITYATTITUDE, DOC_TREATMENTEXPLAINATION, EM_OVERALL, EDAD, 
+                           AD_TARRIFFPACKAGESEXPLAINATION, DEPARTAMENTO, ESTADO, CATEGORIACAMA, 
+                           INR_ROOMAMBIENCE, FNB_DIETICIAN, INR_ROOMCLEANLINESS, CE_VALUEFORMONEY, 
+                           CE_CSAT, DIASINTERNADO, CE_ACCESSIBILITY, DP_DISCHARGETIME, 
+                           FNB_FOODQUALITY, NPS))
+redd = dummyVars('~.', data = red)
+reddum = data.frame(predict(redd, newdata = red))
+reddum$NPS = a$NPS
+reddum = subset(reddum, select = -c(NPS.Promotor, NPS.Detractor, NPS.Passive))
+upred = upSample(x = reddum[,-ncol(reddum)],
+                 y = reddum$NPS)
+```
+
+VERY REDUCED VARIABLES FOR SVM RFE
+```{r}
+redred = subset(upred, select = c(EDAD, CE_VALUEFORMONEY, COSTOESTIMADO, CE_CSAT, DIASINTERNADO, 
+                                  DP_DISCHARGETIME, CE_ACCESSIBILITY, AD_TARRIFFPACKAGESEXPLAINATION, 
+                                  FNB_FOODQUALITY, Class))
+```
+
+
+
+SPLIT INTO TEST AND TRAIN
+```{r}
+traina = sample(c(TRUE, FALSE), nrow(a),
+            replace = TRUE, prob = c(0.7, 0.3))
+
+atrain = a[traina, ]
+atest = a[!traina, ]
+
+numtrain = numa[traina, ]
+numtest = numa[!traina, ]
+
+dumtrain = datdum[traina, ]
+dumtest = datdum[!traina, ]
+
+uptrain = upa[traina, ]
+uptest = upa[!traina, ]
+
+redtrain = upred[traina, ]
+redtest = upred[!traina, ]
+
+redredtrain = redred[traina, ]
+redredtest = redred[!traina, ]
+```
+
+K-FOLD CROSS VALIDATION
+```{r}
+library(ISLR)
+
+set.seed(378)
+kcv = trainControl(method = 'cv',
+                   number = 10,
+                   verboseIter = TRUE,
+                   classProbs = TRUE,
+                   summaryFunction = multiClassSummary,
+                   savePredictions = TRUE)
+```
+
+
+
+
+
+
+
+
+
+
+MODELING
+
+
+
+
+FACTORIAL ANALYSIS OF MIXED DATA (FAMD)
+```{r}
+library(factoextra)
+ffamd = FAMD(fac, graph = FALSE)
+#ffamd
+
+ind_coord = as.data.frame(ffamd$ind$coord)
+ind_cos2 = as.data.frame(ffamd$ind$cos2)
+ind_coord$cos2 = rowSums(ind_cos2)
+ind_coord$ID = paste0("ind_", seq_len(nrow(ind_coord)))
+top_n = 250
+selected_inds = ind_coord[order(-ind_coord$cos2), ][1:top_n, ]
+
+ggplot(selected_inds, aes(x = Dim.1, y = Dim.2)) +
+  geom_point(aes(color = cos2)) +
+  scale_color_gradientn(colors = c("royalblue3", "chartreuse3", "gold2")) +
+  labs(title = "FAMD - Individuals factor map",
+       x = "Dim.1", y = "Dim.2") +
+  theme_minimal()
+```
+
+MULTIPLE CORRESPONDENCE ANALYSIS (MCA)
+```{r}
+fmca = MCA(catmca, ncp = 5, graph = FALSE)
+fviz_mca_biplot(fmca, repel = TRUE, invisible = 'ind',
+                select.var = list(contrib = 15),
+labelsize = .5,
+col.var = 'contrib')
+fviz_screeplot(fmca, addlabels = TRUE, ylim = c(0, 45))
+#fmca
+
+mcva = get_mca_var(fmca)
+head(mcva$contrib)
+```
+
+PCA
+```{r}
+pc = prcomp(numonly,
+            center = TRUE,
+            scale. = TRUE)
+#attributes(pc)
+#pc$center
+#pc$scale
+#pc
+#summary(pc)
+fviz_eig(pc, addlabels = TRUE)
+fviz_cos2(pc, choice = "var", axes = 1:2)
+get_eigenvalue(pc)
+
+pc1_pc2 <- pc$rotation[, c("PC1", "PC2")]
+#pc1_pc2
+pc1.6 <- pc$rotation[, c("PC1", "PC2", 'PC3','PC4','PC5','PC6')]
+#pc1.6
+kmeans<-eclust(pc1_pc2, k=3)
+
+fviz_screeplot(pc, color = "royalblue3", addlabels = TRUE, ylim = c(0, 45))
+
+library(ggfortify)
+autoplot(pc1.6, loadings=TRUE, loadings.colour='black', loadings.label=TRUE, loadings.label.size=0.5)
+abc = fviz_pca_var(pc,
+             col.var = "cos2",
+             gradient.cols = c("royalblue3", "white", "black"),
+             repel = TRUE,
+             select.var = list(contrib = 15),
+             labelsize = 2
+             )
+abc
+
+library(factoextra)
+eig = get_eigenvalue(pc)
+eig
+  
+pcva = get_pca_var(pc)
+pcva$coord          # Coordinates
+pcva$contrib        # Contributions to the PCs
+pcva$cos2           # Quality of representation
+```
+
+
+
+
+
+
+Regression and VIF
+```{r}
+numnps = numonly
+numnps$SCORENPS = dat2$SCORENPS
+model = lm(SCORENPS~., data = numnps)
+#summary(model)
+
+library(car)
+#vif(model)
+
+NS_avg = (a$NS_CALLBELLRESPONSE+ a$NS_NURSESATTITUDE+ a$NS_NURSEPROACTIVENESS+ a$NS_NURSEPATIENCE)/4
+DOC_avg = (a$DOC_ATTITUDE +a$DOC_VISITS +a$DOC_TREATMENTEFFECTIVENESS)/3
+```
+
+FUNCTION FOR MEAN F1
+```{r}
+meanf1 = function(x) {
+  # precision = true pos / true pos + false pos
+  # recall = true pos / true pos + false neg
+  # [row, col]
+  p1 = x[1,1] / (x[1,1] + x[1,2] + x[1,3])
+  r1 = x[1,1] / (x[1,1] + x[2,1] + x[3,1])
+  p2 = x[2,2] / (x[2,2] + x[2,1] + x[2,3])
+  r2 = x[2,2] / (x[2,2] + x[1,2] + x[3,2])
+  p3 = x[3,3] / (x[3,3] + x[3,1] + x[3,2])
+  r3 = x[3,3] / (x[3,3] + x[1,3] + x[2,3])
+  
+  p = (p1+p2+p3)/3
+  r = (r1+r2+r3)/3
+  
+  f1 = 2* (p*r)/(p+r)
+}
+```
+
+
+RANDOM FOREST
+```{r}
+library(caret)
+library(randomForest)
+library(varImp)
+
+rfd <- caret::train(Class ~. , 
+              data = redtrain,
+              method = 'rf',
+              trControl = kcv,
+              metric = 'Accuracy')
+#rfd
+plot(rfd)
+
+p1d = predict(rfd, redtrain)
+p1dt = confusionMatrix(p1d, redtrain$Class)
+#p1dt
+
+p2d = predict(rfd, redtest)
+p2dt = confusionMatrix(p2d, redtest$Class)
+#p2dt
+p2df = as_tibble(p2dt$table)
+plot_confusion_matrix(p2df, target_col = "Reference", prediction_col = "Prediction", counts_col = "n")
+
+var_imp <- caret::varImp(rfd, scale=FALSE)$importance
+var_imp <- data.frame(variables=row.names(var_imp), importance=var_imp$Overall)
+var_imp %>%
+  slice_max(order_by = importance, n=10) %>%
+  ggplot(aes(x=reorder(variables, importance), y=importance)) + 
+    geom_bar(stat='identity') + 
+    coord_flip() + 
+    xlab('Variables') +
+    labs(title='Random forest variable importance') + 
+    theme_minimal() + 
+    theme(axis.text = element_text(size = 10), 
+          axis.title = element_text(size = 15), 
+          plot.title = element_text(size = 20),  )
+
+f1rf = table(redtest$Class, p2d)
+wa = meanf1(f1rf)
+```
+
+K NEAREST NEIGHBOR
+```{r}
+library(caret)
+
+set.seed(874)
+grid = expand.grid(.k=seq(1,20,by=1))
+knn <- caret::train(Class~., data=redtrain, method="knn", metric='Accuracy' ,trControl=kcv, 
+                    preProcess = c('center','scale'))
+#knn
+knn.1 <- knn$bestTune
+plot(knn)
+
+pred = predict(knn, newdata = redtest)
+conmat = confusionMatrix(pred, redtest$Class)
+#conmat
+formcon = as_tibble(conmat$table)
+
+plot_confusion_matrix(formcon, target_col = "Reference", prediction_col = "Prediction", 
+                      counts_col = "n")
+
+kt = matrix(
+  c(750,99,0, 157,835,0, 17,24,926),
+  nrow = 3,
+  ncol = 3,
+  byrow = TRUE
+)
+kt
+ktf1 = meanf1(kt)
+ktf1
+```
+
+XGBOOST
+```{r}
+library(dplyr)
+library(cvms)
+library(xgboost)
+xgb_params <- expand.grid(
+  eta = seq(from = 0.1, to = 1, by = 0.2),
+  max_depth = c(1,3,5)^2,
+  nrounds = c(5000,1000,500),
+  gamma = 0,
+  colsample_bytree = 1,
+  min_child_weight = 1,
+  subsample = 1
+)
+
+xg <- caret::train(Class~., data=redtrain,
+  method = 'xgbTree',
+  metric = 'Accuracy',
+  tuneGrid = xgb_params,
+  trControl = kcv
+)
+#xg
+
+xpred = predict(xg, newdata = redtest)
+cm = confusionMatrix(xpred, redtest$Class)
+#cm
+
+cfm = as_tibble(cm$table)
+plot_confusion_matrix(cfm, target_col = "Reference", prediction_col = "Prediction", 
+                      counts_col = "n")
+
+xgimp <- caret::varImp(xg, scale=FALSE)$importance
+view(xgimp)
+xgimp <- data.frame(variables=row.names(xgimp), importance=xgimp$Overall)
+xgimp %>%
+  slice_max(order_by = importance, n=10) %>%
+  ggplot(aes(x=reorder(variables, importance), y=importance)) + 
+    geom_bar(stat='identity') + 
+    coord_flip() + 
+    xlab('Variables') +
+    labs(title='XGBOOST variable importance') + 
+    theme_minimal() + 
+    theme(axis.text = element_text(size = 10), 
+          axis.title = element_text(size = 15), 
+          plot.title = element_text(size = 20),  )
+
+xgt = matrix(
+  c(750,99,0, 157,835,0,174,24,926),
+  nrow = 3,
+  ncol = 3,
+  byrow = TRUE
+)
+xgt
+xgf1 = meanf1(xgt)
+xgf1
+```
+
+SVM
+```{r}
+library(e1071)
+library(kernlab)
+library(MLmetrics)
+
+set.seed(32784)
+svgrid <- expand.grid(C = 2^(1:5), sigma = 2^(-15:3))
+smod = caret::train(Class~., data = redtrain, method = 'svmRadial', trControl = kcv,
+                    tuneLength = 10, tuneGrid = svgrid)
+#smod
+#plot(smod)
+
+svpred = predict(smod, newdata = redtest)
+coma = confusionMatrix(data = svpred, reference = redtest$Class)
+#coma
+
+fcoma = as_tibble(coma$table)
+plot_confusion_matrix(fcoma, target_col = "Reference", prediction_col = "Prediction", 
+                      counts_col = "n")
+
+srFuncs = caretFuncs
+srFuncs$fit = function(x, y, first, last, ...) {caret::train(
+  x, y, 
+  method = "svmRadial", 
+  preProcess = c("center", "scale"), 
+  trControl = trainControl(method = "cv", number = 10),
+  tuneLength = 3)}
+ctrl = rfeControl(functions = srFuncs, method = "cv", number = 10)
+
+ncol(redredtrain)
+head(redredtrain[, -10])
+svmrfe = rfe(redredtrain[, -10], 
+             redredtrain$Class, 
+             sizes = c(1:9),
+             rfeControl = ctrl)
+svmrfe
+
+svmt = matrix(
+  c(923,238,5, 1,720,0, 0,0,921),
+  nrow = 3,
+  ncol = 3,
+  byrow = TRUE
+)
+svmt
+svmf1 = meanf1(svmt)
+svmf1
+```
+
+NETWORK MODEL OF FINAL NUMERIC VARIABLES
+```{r}
+numeric2 = redredtrain[sapply(redredtrain, is.numeric)]
+nw2 <- estimateNetwork(numeric2, default = 'EBICglasso', tuning = 0.5, threshold = TRUE)
+
+maxi2 <- max(nw2$graph)
+qgraph(nw2$graph, maximum=maxi2, theme = "colorblind", palette = "rainbow",layout = 'spring')
+```
